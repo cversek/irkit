@@ -21,7 +21,7 @@ def align(img1, img2):
     img1_array = numpy.array(img1.getMatrix())
     res_array = cv2.warpPerspective(src   = img1_array,
                                     M     = homo,
-                                    dsize = (h,w),
+                                    dsize = (w,h),
                                     flags = cv2.INTER_CUBIC,
                                    )
                                    
