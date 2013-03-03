@@ -1,32 +1,39 @@
 from SimpleCV import *
+from ImageClass2 import Image2 as Image #monkey patch the SimpleCV class to fix homography calculation
 import cv2
 import cv
 import numpy
 
-def stitch(img1, img2):
+def align(img1, img2):
+    """Align img1 against img2 by applying a perspective warp transform  """
     #create an empty destination image with combined size
     h1,w1 = img1.size()
     h2,w2 = img2.size()
     dst_img = Image((h1+h2,w1+w2))
     dst_array = numpy.array(dst_img.getMatrix())
 
-    ster = StereoImage(img1,img2)
-    H = ster.findHomography()[0]
+    #ster = StereoImage(img1,img2)
+    #H = ster.findHomography()[0]
     #homo = numpy.rot90(numpy.matrix(H))
+
+    match = img2.findKeypointMatch(img1)
+    homo  = match[1]
+    
+    
     #transform to one image
-    img2_array = numpy.array(img2.getMatrix())
-    res_array = cv2.warpPerspective(src   = img2_array,
-                                    M     = H,
-                                    dsize = dst_img.size(),
-                                    dst   = dst_array,
+    img1_array = numpy.array(img1.getMatrix())
+    res_array = cv2.warpPerspective(src   = img1_array,
+                                    M     = homo,
+                                    dsize = (min(h1,h2),min(w1,w2)),
+                                    #dst   = dst_array,
                                     flags = cv2.INTER_CUBIC,
                                    )
                                    
     #res_img = Image(res_array,colorSpace = ColorSpace.RGB).toBGR()
     res_img = Image(res_array)
-    res_img = res_img.rotate90()
+    #res_img = res_img.rotate90()
     # blit the img1 now on coordinate (0, 0).
-    res_img = res_img.blit(img1, alpha=0.4)
+    #res_img = res_img.blit(img1, alpha=0.4)
     return res_img
     
 ################################################################################
@@ -38,8 +45,17 @@ if __name__ == "__main__":
     IM2 = "test_images/a1.png"
     #IM1 = "test_images/wave1.jpg"
     #IM2 = "test_images/wave2.jpg"
-
     img1 = Image(IM1)
     img2 = Image(IM2)
-    res  = stitch(img1,img2)
-    res.save("stitched.png")
+    
+    a1_2 = align(img1,img2)           #alignment 
+    o1_2 = a1_2.blit(img2,alpha=0.5)  #overlay
+    a2_1 = align(img2,img1)           #alignment 
+    o2_1 = a2_1.blit(img1,alpha=0.5)  #overlay
+    
+    o1_2.save("o1_2.png")
+    o2_1.save("o2_1.png")
+    
+
+    
+    
