@@ -8,10 +8,10 @@ import numpy
 
 def align(img1, img2):
     """align img1 against img2 by applying a perspective warp transform"""
-    h1,w1 = img1.size()
-    h2,w2 = img2.size()
-    h = min(h1,h2)
+    w1,h1 = img1.size()
+    w2,h2 = img2.size()
     w = min(w1,w2)
+    h = min(h1,h2)
     
     #extract the homography matrix using keypoint matching
     match = img2.findKeypointMatch(img1)
@@ -21,7 +21,7 @@ def align(img1, img2):
     img1_array = numpy.array(img1.getMatrix())
     res_array = cv2.warpPerspective(src   = img1_array,
                                     M     = homo,
-                                    dsize = (w,h),
+                                    dsize = (h,w),    #note the flipped width/height order convention!
                                     flags = cv2.INTER_CUBIC,
                                    )
                                    
@@ -34,10 +34,10 @@ def align(img1, img2):
 ################################################################################    
 if __name__ == "__main__":
 
-    #IM1 = "test_images/a0.png"
-    #IM2 = "test_images/a1.png"
-    IM1 = "test_images/wave1.jpg"
-    IM2 = "test_images/wave2.jpg"
+    IM1 = "test_images/a0.png"
+    IM2 = "test_images/a1.png"
+    #IM1 = "test_images/wave1.jpg"
+    #IM2 = "test_images/wave2.jpg"
     img1 = Image(IM1)
     img2 = Image(IM2)
     
