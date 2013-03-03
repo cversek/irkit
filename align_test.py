@@ -12,10 +12,12 @@ def align(img1, img2):
     h2,w2 = img2.size()
     h = min(h1,h2)
     w = min(w1,w2)
+    
+    #extract the homography matrix using keypoint matching
     match = img2.findKeypointMatch(img1)
     homo  = match[1]
 
-    #transform to one image
+    #transform img1 via homography matrix
     img1_array = numpy.array(img1.getMatrix())
     res_array = cv2.warpPerspective(src   = img1_array,
                                     M     = homo,
@@ -32,10 +34,10 @@ def align(img1, img2):
 ################################################################################    
 if __name__ == "__main__":
 
-    IM1 = "test_images/a0.png"
-    IM2 = "test_images/a1.png"
-    #IM1 = "test_images/wave1.jpg"
-    #IM2 = "test_images/wave2.jpg"
+    #IM1 = "test_images/a0.png"
+    #IM2 = "test_images/a1.png"
+    IM1 = "test_images/wave1.jpg"
+    IM2 = "test_images/wave2.jpg"
     img1 = Image(IM1)
     img2 = Image(IM2)
     
