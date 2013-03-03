@@ -1,39 +1,26 @@
 from SimpleCV import *
-from ImageClass2 import Image2 as Image #monkey patch the SimpleCV class to fix homography calculation
+#monkey patch the SimpleCV class to fix homography calculation in 
+#Image.findKeypointMatch
+from ImageClass2 import Image2 as Image 
 import cv2
 import cv
 import numpy
 
 def align(img1, img2):
-    """Align img1 against img2 by applying a perspective warp transform  """
-    #create an empty destination image with combined size
-    h1,w1 = img1.size()
-    h2,w2 = img2.size()
-    dst_img = Image((h1+h2,w1+w2))
-    dst_array = numpy.array(dst_img.getMatrix())
-
-    #ster = StereoImage(img1,img2)
-    #H = ster.findHomography()[0]
-    #homo = numpy.rot90(numpy.matrix(H))
-
+    """align img1 against img2 by applying a perspective warp transform"""
     match = img2.findKeypointMatch(img1)
     homo  = match[1]
-    
-    
+
     #transform to one image
     img1_array = numpy.array(img1.getMatrix())
     res_array = cv2.warpPerspective(src   = img1_array,
                                     M     = homo,
                                     dsize = (min(h1,h2),min(w1,w2)),
-                                    #dst   = dst_array,
                                     flags = cv2.INTER_CUBIC,
                                    )
                                    
     #res_img = Image(res_array,colorSpace = ColorSpace.RGB).toBGR()
     res_img = Image(res_array)
-    #res_img = res_img.rotate90()
-    # blit the img1 now on coordinate (0, 0).
-    #res_img = res_img.blit(img1, alpha=0.4)
     return res_img
     
 ################################################################################
