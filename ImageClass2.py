@@ -17,7 +17,7 @@ from SimpleCV import Image
 import numpy as np
 
 class Image2(Image):    
-    def findKeypointMatch(self,template,quality=500.00,minDist=0.2,minMatch=0.4):
+    def findHomography(self,template,quality=500.00,minDist=0.2,minMatch=0.4):
         """
         !!!! FIXME !!!! THIS IS A REPLACEMENT METHOD
         that patches an incorrect construction of the homography matrix 
@@ -30,9 +30,8 @@ class Image2(Image):
         SURF keypoints. The method extracts keypoints from each image, uses the Fast Local
         Approximate Nearest Neighbors algorithm to find correspondences between the feature
         points, filters the correspondences based on quality, and then, attempts to calculate
-        a homography between the two images. This homography allows us to draw a matching
-        bounding box in the source image that corresponds to the template. This method allows
-        you to perform matchs the ordinarily fail when using the findTemplate method.
+        a homography between the two images. This method allows you to perform matchs the ordinarily 
+        fail when using the findTemplate method.
         This method should be able to handle a reasonable changes in camera orientation and
         illumination. Using a template that is close to the target image will yield much
         better results.
@@ -55,29 +54,7 @@ class Image2(Image):
 
         **RETURNS**
 
-        If a homography (match) is found this method returns a feature set with a single
-        KeypointMatch feature. If no match is found None is returned.
-        **EXAMPLE**
-        >>> template = Image("template.png")
-        >>> img = camera.getImage()
-        >>> fs = img.findKeypointMatch(template)
-        >>> if( fs is not None ):
-        >>> fs[0].draw()
-        >>> img.show()
-        **NOTES**
-
-        If you would prefer to work with the raw keypoints and descriptors each image keeps
-        a local cache of the raw values. These are named:
-        | self._mKeyPoints # A Tuple of keypoint objects
-        | self._mKPDescriptors # The descriptor as a floating point numpy array
-        | self._mKPFlavor = "NONE" # The flavor of the keypoints as a string.
-        | `See Documentation <http://opencv.itseez.com/modules/features2d/doc/common_interfaces_of_feature_detectors.html#keypoint-keypoint>`_
-
-        **SEE ALSO**
-        :py:meth:`_getRawKeypoints`
-        :py:meth:`_getFLANNMatches`
-        :py:meth:`drawKeypointMatches`
-        :py:meth:`findKeypoints`
+        If a homography (match) is found, it is returned otherwise None is returned
 
         """
         
@@ -108,6 +85,7 @@ class Image2(Image):
         pr = result.shape[0]/float(dist.shape[0])
 
         if( pr > minMatch and len(result)>4 ): # if more than minMatch % matches we go ahead and get the data
+            #FIXME this code computes the correct homography
             lhs = []
             rhs = []
             for i in range(0,len(idx)):
@@ -119,32 +97,8 @@ class Image2(Image):
             lhs_pt = np.array(lhs)
             if( len(rhs_pt) < 16 or len(lhs_pt) < 16 ):
                 return None
-            homography = []
-            (homography,mask) = cv2.findHomography(lhs_pt,rhs_pt,cv2.RANSAC, ransacReprojThreshold=1.0 )
-            w = template.width
-            h = template.height
-            yo = homography[0][2] # get the x/y offset from the affine transform
-            xo = homography[1][2]
-            # draw our template
-            pt0 = np.array([0,0,1])
-            pt1 = np.array([0,h,1])
-            pt2 = np.array([w,h,1])
-            pt3 = np.array([w,0,1])
-            # apply the affine transform to our points
-            pt0p = np.array(pt0*np.matrix(homography))
-            pt1p = np.array(pt1*np.matrix(homography))
-            pt2p = np.array(pt2*np.matrix(homography))
-            pt3p = np.array(pt3*np.matrix(homography))
-            #update and clamp the corners to get our template in the other image
-            pt0i = (abs(pt0p[0][0]+xo),abs(pt0p[0][1]+yo))
-            pt1i = (abs(pt1p[0][0]+xo),abs(pt1p[0][1]+yo))
-            pt2i = (abs(pt2p[0][0]+xo),abs(pt2p[0][1]+yo))
-            pt3i = (abs(pt3p[0][0]+xo),abs(pt3p[0][1]+yo))
-            #construct the feature set and return it.
-            fs = FeatureSet()
-            fs.append(KeypointMatch(self,template,(pt0i,pt1i,pt2i,pt3i),homography))
-            #the homography matrix is necessary for many purposes like image stitching.
-            fs.append(homography)
-            return fs
+                
+            homography,mask = cv2.findHomography(lhs_pt,rhs_pt,cv2.RANSAC, ransacReprojThreshold=1.0 )
+            return (homography, mask)
         else:
             return None 
