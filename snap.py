@@ -1,81 +1,65 @@
 ################################################################################
-import datetime, os, time, argparse, multiprocessing, subprocess
+import datetime, os, time, argparse
+from dual_camera import DualCamera
+#monkey patch the SimpleCV class to fix homography calculation in 
+#Image.findKeypointMatch
+from ImageClass2 import Image2 as Image 
+
 DEFAULT_NUM         = 5
 DEFAULT_DELAY       = 5
 DEFAULT_RESOLUTION  = "1280x1024"
 DEFAULT_PNG_COMPRESSION = 9 # (-1,0-10)
-DEFAULT_PRE_CAPTURE_DELAY = 1 #seconds
-DEFAULT_FRAME_SKIP  = 3 
-DEFAULT_OUTPUT_PATH = "imgs"
+DEFAULT_OUTPUT_PATH = "raw_images"
 DEFAULT_VERBOSE     = True
 ################################################################################
 
-def run_cmd(cmd):
-        return subprocess.call(cmd, shell=False)
 ################################################################################
 class Application:
     def __init__(self,
+                 vis_camera_index  = 0,
+                 ir_camera_index   = 1,
                  resolution        = DEFAULT_RESOLUTION,
                  png_compression   = DEFAULT_PNG_COMPRESSION,
-                 pre_capture_delay = DEFAULT_PRE_CAPTURE_DELAY, #seconds
-                 frame_skip        = DEFAULT_FRAME_SKIP,
                  output_path       = DEFAULT_OUTPUT_PATH,
                  verbose           = DEFAULT_VERBOSE,
                 ):
-        #setup capture options
-        self.resolution = resolution
-        self.png_compression   = int(png_compression)
-        self.pre_capture_delay = int(pre_capture_delay)
-        self.frame_skip        = int(frame_skip)
         #setup image output directory
         self.output_path = output_path
         if not os.path.isdir(output_path):
             os.mkdir(output_path)
         #make noise?
         self.verbose = verbose
-        #setup asynchronous process launching
-        count = multiprocessing.cpu_count()            #get num of multiprocessors
-        self._pool  = multiprocessing.Pool(processes=count)
-        #configure camera devices
-        #FIXME how to tell which is IR and which is VIS when device number 
-        #      depends on USB initialization order?! Get serial number??
-        self._cam0 = "/dev/video0" #IR
-        self._cam1 = "/dev/video1" #VIS
+        self.dual_camera = DualCamera(camera_index1 = vis_camera_index,
+                                      camera_index2 = ir_camera_index,
+                                     )
     
     def capture(self, 
                 filename_prefix = None, 
                 filename_suffix = "",
                ):
+        #capture the images
+        img_vis, img_ir = self.dual_camera.capture_both() 
+        #format filenames
         if filename_prefix is None:
             dt    = datetime.datetime.now()
             filename_prefix = dt.strftime("%Y-%m-%d_%H_%M_%S")
-        #build the common capture command options
-        base_cmd = ["fswebcam"]
-        base_cmd.append("-r %s" % self.resolution)
-        base_cmd.append("--png %d" % self.png_compression)
-        base_cmd.append("-D %d" % self.pre_capture_delay)
-        base_cmd.append("-S %d" % self.frame_skip)
         #update prefix to include the output path
         filename_prefix = os.sep.join((self.output_path,filename_prefix))
         #construct the filepaths
-        fn0 = "%s_IRimg%s.png"  % (filename_prefix, filename_suffix)
-        fn1 = "%s_VISimg%s.png" % (filename_prefix, filename_suffix)
-        #construct the full capture commands
-        cmd0 = base_cmd[:] #copy list
-        cmd0.append("--save %s" % fn0)
-        cmd0.append("-d %s" % self._cam0)
-        cmd0 = " ".join(cmd0)
-        cmd1 = base_cmd[:] #copy list
-        cmd1.append("--save %s" % fn1)
-        cmd1.append("-d %s" % self._cam1)
-        cmd1 = " ".join(cmd1)
-        #run the commands asynchronously
+        fn_vis = "%s_VISimg%s.png" % (filename_prefix, filename_suffix)
+        fn_ir = "%s_IRimg%s.png"  % (filename_prefix, filename_suffix)
+        #save the images
         if self.verbose:
-            print "running following commands asynchronously:"
-            print cmd0
-            print cmd1
-            print '-'*40    
-        self._pool.map(run_cmd,[cmd0.split(), cmd1.split()])
+            print '-'*40
+            print "saving VIS image:"
+            print "\tfilename:", fn_vis
+            print "\tlatency: %0.2f" % img_vis.capture_latency
+        img_vis.save(fn_vis)
+        if self.verbose:
+            print "saving IR image:"
+            print "\tfilename:", fn_ir
+            print "\tlatency: %0.2f" % img_ir.capture_latency   
+        img_ir.save(fn_ir)
 
         
     def capture_sequence(self,
@@ -119,16 +103,6 @@ if __name__ == "__main__":
                         choices = (-1,0,1,2,3,4,5,6,7,8,9,10),
                         default = DEFAULT_PNG_COMPRESSION,
                        )       
-    parser.add_argument("-p", "--pre_capture_delay", 
-                        help = "pre capture delay (seconds)",
-                        type = float,
-                        default = DEFAULT_PRE_CAPTURE_DELAY,
-                       )
-    parser.add_argument("-f", "--frame_skip", 
-                        help = "skip number of frames",
-                        type = int,
-                        default = DEFAULT_FRAME_SKIP,
-                       )
     parser.add_argument("-o", "--output_path", 
                         help = "path for img output",
                         default = DEFAULT_OUTPUT_PATH,
@@ -142,15 +116,9 @@ if __name__ == "__main__":
     #apply configuration arguments to constructor
     app = Application(resolution        = args.resolution,
                       png_compression   = args.png_compression,
-                      pre_capture_delay = args.pre_capture_delay, #seconds
-                      frame_skip        = args.frame_skip,
                       output_path       = args.output_path,
                       verbose           = args.verbose,
                      )
     #run the capture_sequence
-    app.capture_sequence(num = args.num, delay = args.delay)
-    
-    
-
-    
+    app.capture_sequence(num = args.num, delay = args.delay)  
 
