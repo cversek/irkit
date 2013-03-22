@@ -1,10 +1,8 @@
-import time
+import time, threading
 from collections import OrderedDict
 import cv, cv2
+from SimpleCV import Image
 from SimpleCV.Camera import FrameSource
-#monkey patch the SimpleCV class to fix homography calculation in 
-#Image.findKeypointMatch
-from ImageClass2 import Image2 as Image 
 
 class CaptureContainer:
     """
@@ -31,26 +29,48 @@ class CaptureContainer:
         if prop_set is None:
             prop_set = {}
         self.prop_set = prop_set
-        
+            
     def read(self):
         if self.capture is None:
             self.load_capture()
         return self.capture.read()
      
     def load_capture(self):
-        self.capture = cv2.VideoCapture(self.dev_index)   
+        self.capture = cv2.VideoCapture(self.dev_index)
         #set any properties which were passed in the constructor
         for p in self.prop_set.keys():
             if p in self.prop_map:
                 self.capture.set(self.prop_map[p], self.prop_set[p])
+        #flush the buffer when in is setting exposure
+        for i in range(20):
+            self.capture.grab()
+        #continually flush buffer when running
+        self._debuffer_thread = threading.Thread(target=self._debuffer)
+        self._debuffer_thread.daemon = True #don't block on exit
+        self._debuffer_stop_event = threading.Event()
+        self._debuffer_thread.start()
     
     def release_capture(self):
         if not self.capture is None:
+            self._debuffer_stop_event.set() #stop debuffering thread
             self.capture.release()
             self.capture = None
+            self._debuffer_thread.join()
+            
+    def _debuffer(self):
+        """Constantly debuffer stale frames, so lag doesn't occur. 
+           Run as thread.
+        """
+        while not self._debuffer_stop_event.is_set():
+            self.capture.grab()
+            #print "grabbed"
+            self._debuffer_stop_event.wait(0.04)
     
     def __hash__(self):
         return self.dev_index
+        
+        
+        
 
 class DualCamera:
     """
@@ -66,13 +86,21 @@ class DualCamera:
     """
     
     
-    def __init__(self, camera_index1 = 0, camera_index2 = 1, prop_set = None):
-        if prop_set is None:
-            prop_set = {}
-        self.prop_set = prop_set
+    def __init__(self, 
+                 camera_index1 = 0, 
+                 camera_index2 = 1, 
+                 prop_set1 = None, 
+                 prop_set2 = None
+                ):
+        if prop_set1 is None:
+            prop_set1 = {}
+        if prop_set2 is None:
+            prop_set2 = {}
+        self.prop_set1 = prop_set1
+        self.prop_set2 = prop_set2
         self._capture_containers = OrderedDict()
-        self._capture_containers[1] = CaptureContainer(camera_index1, prop_set = prop_set)
-        self._capture_containers[2] = CaptureContainer(camera_index2, prop_set = prop_set)
+        self._capture_containers[1] = CaptureContainer(camera_index1, prop_set = prop_set1)
+        self._capture_containers[2] = CaptureContainer(camera_index2, prop_set = prop_set2)
         for key,cc in self._capture_containers.items():
             cc.load_capture()
         
@@ -116,6 +144,10 @@ class DualCamera:
         img2.capture_latency = t2 - t0
         return img1,img2
         
+    def close(self):
+        for key,cc in self._capture_containers.items():
+            cc.release_capture()
+        
         
 ################################################################################
 #  TEST CODE
@@ -136,3 +168,5 @@ if __name__ == "__main__":
             time.sleep(5)
     except KeyboardInterrupt:
         pass
+    finally:
+        DC.close()
