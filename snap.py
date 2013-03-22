@@ -1,15 +1,12 @@
 ################################################################################
-import datetime, os, time, argparse
+import datetime, os, time, argparse, getpass
 from dual_camera import DualCamera
-#monkey patch the SimpleCV class to fix homography calculation in 
-#Image.findKeypointMatch
-from ImageClass2 import Image2 as Image 
 
-DEFAULT_NUM         = 5
-DEFAULT_DELAY       = 5
-DEFAULT_RESOLUTION  = "1280x1024"
-DEFAULT_PNG_COMPRESSION = 9 # (-1,0-10)
-DEFAULT_OUTPUT_PATH = "raw_images"
+DEFAULT_NUM         = 1                        
+DEFAULT_DELAY       = 5                        #seconds
+DEFAULT_RESOLUTION  = "1280x1024"              #width x height
+USERHOME_PATH       = os.path.expanduser("~")  #should be portable
+DEFAULT_OUTPUT_PATH = os.sep.join((USERHOME_PATH,"snap_images"))
 DEFAULT_VERBOSE     = True
 ################################################################################
 
@@ -17,9 +14,8 @@ DEFAULT_VERBOSE     = True
 class Application:
     def __init__(self,
                  vis_camera_index  = 0,
-                 ir_camera_index   = 1,
+                 nir_camera_index  = 1,
                  resolution        = DEFAULT_RESOLUTION,
-                 png_compression   = DEFAULT_PNG_COMPRESSION,
                  output_path       = DEFAULT_OUTPUT_PATH,
                  verbose           = DEFAULT_VERBOSE,
                 ):
@@ -29,8 +25,15 @@ class Application:
             os.mkdir(output_path)
         #make noise?
         self.verbose = verbose
+        
+        w, h = map(int,resolution.split('x'))
+        self.prop_set_vis = {'width': w, 'height': h}
+        self.prop_set_nir = {'width': w, 'height': h}
+        
         self.dual_camera = DualCamera(camera_index1 = vis_camera_index,
-                                      camera_index2 = ir_camera_index,
+                                      camera_index2 = nir_camera_index,
+                                      prop_set1 = self.prop_set_vis,
+                                      prop_set2 = self.prop_set_nir,
                                      )
     
     def capture(self, 
@@ -47,7 +50,7 @@ class Application:
         filename_prefix = os.sep.join((self.output_path,filename_prefix))
         #construct the filepaths
         fn_vis = "%s_VISimg%s.png" % (filename_prefix, filename_suffix)
-        fn_ir = "%s_IRimg%s.png"  % (filename_prefix, filename_suffix)
+        fn_ir  = "%s_NIRimg%s.png"  % (filename_prefix, filename_suffix)
         #save the images
         if self.verbose:
             print '-'*40
@@ -56,7 +59,7 @@ class Application:
             print "\tlatency: %0.2f" % img_vis.capture_latency
         img_vis.save(fn_vis)
         if self.verbose:
-            print "saving IR image:"
+            print "saving NIR image:"
             print "\tfilename:", fn_ir
             print "\tlatency: %0.2f" % img_ir.capture_latency   
         img_ir.save(fn_ir)
@@ -65,16 +68,30 @@ class Application:
     def capture_sequence(self,
                          num, 
                          delay, 
-                        ):                                            
-        for i in range(num):
-            dt = datetime.datetime.now()
-            filename_prefix = dt.strftime("%Y-%m-%d_%H_%M_%S")
-            filename_suffix = "%03d" % i
-            self.capture(filename_prefix = filename_prefix, 
-                         filename_suffix = filename_suffix,
-                        )
-            if not (i == num-1):
-                time.sleep(delay)
+                        ):
+        i = 0  
+        try:                                          
+            while True:
+                if num > 0 and i >= num:  #negative num will never return
+                    if self.verbose:
+                        print "finished capture...goodbye"
+                    return
+                dt = datetime.datetime.now()
+                filename_prefix = dt.strftime("%Y-%m-%d_%H_%M_%S")
+                filename_suffix = "%03d" % i
+                self.capture(filename_prefix = filename_prefix, 
+                             filename_suffix = filename_suffix,
+                            )
+                if not (i == num-1):
+                    time.sleep(delay)
+                i += 1
+        except KeyboardInterrupt:
+            if self.verbose:
+                print "user aborted capture...goodbye"
+
+                
+    def close(self):
+        self.dual_camera.close()
 ################################################################################
 # MAIN
 ################################################################################
@@ -83,7 +100,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     #capture sequence arguments
     parser.add_argument("-n", "--num", 
-                        help = "number of images in sequence",
+                        help = "number of images in sequence, negative implies infinite",
                         type = int,
                         default = DEFAULT_NUM,
                        )
@@ -97,12 +114,7 @@ if __name__ == "__main__":
                         help = "set the resolution of the camera",
                         default = DEFAULT_RESOLUTION,
                        )
-    parser.add_argument("-c", "--png_compression", 
-                        help = "level of PNG compression (-1,0-10)",
-                        type = int,
-                        choices = (-1,0,1,2,3,4,5,6,7,8,9,10),
-                        default = DEFAULT_PNG_COMPRESSION,
-                       )       
+
     parser.add_argument("-o", "--output_path", 
                         help = "path for img output",
                         default = DEFAULT_OUTPUT_PATH,
@@ -115,7 +127,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     #apply configuration arguments to constructor
     app = Application(resolution        = args.resolution,
-                      png_compression   = args.png_compression,
                       output_path       = args.output_path,
                       verbose           = args.verbose,
                      )
