@@ -4,7 +4,7 @@ from dual_camera import DualCamera
 
 DEFAULT_NUM         = 1                        
 DEFAULT_DELAY       = 5                        #seconds
-DEFAULT_RESOLUTION  = "1280x1024"              #width x height
+DEFAULT_RESOLUTION  = "620x480"                #width x height
 USERHOME_PATH       = os.path.expanduser("~")  #should be portable
 DEFAULT_OUTPUT_PATH = os.sep.join((USERHOME_PATH,"snap_images"))
 DEFAULT_VERBOSE     = True
@@ -88,6 +88,8 @@ class Application:
         except KeyboardInterrupt:
             if self.verbose:
                 print "user aborted capture...goodbye"
+        finally: #cleanup!
+            self.dual_camera.close()
 
                 
     def close(self):
