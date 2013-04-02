@@ -3,6 +3,7 @@ import datetime, os, time, argparse, multiprocessing, subprocess
 
 DEFAULT_NUM = 1
 DEFAULT_DELAY = 5
+DEFAULT_BEEP_TIME = 0
 DEFAULT_RESOLUTION = "1280x1024"
 #DEFAULT_RESOLUTION = "320x240"
 DEFAULT_PNG_COMPRESSION = 9 # (-1,0-10)
@@ -15,6 +16,10 @@ DEFAULT_VERBOSE = True
 
 def run_cmd(cmd):
         return subprocess.call(cmd, shell=False)
+        
+def beep():
+    os.system("beep")
+    
 ################################################################################
 class Application:
     def __init__(self,
@@ -55,6 +60,7 @@ class Application:
             filename_prefix = dt.strftime("%Y-%m-%d_%H_%M_%S")
         #build the common capture command options
         base_cmd = ["fswebcam"]
+        base_cmd.append("--no-banner")
         base_cmd.append("-r %s" % self.resolution)
         base_cmd.append("--png %d" % self.png_compression)
         base_cmd.append("-D %d" % self.pre_capture_delay)
@@ -62,7 +68,7 @@ class Application:
         #update prefix to include the output path
         filename_prefix = os.sep.join((self.output_path,filename_prefix))
         #construct the filepaths
-        fn0 = "%s_IRimg%s.png" % (filename_prefix, filename_suffix)
+        fn0 = "%s_NIRimg%s.png" % (filename_prefix, filename_suffix)
         fn1 = "%s_VISimg%s.png" % (filename_prefix, filename_suffix)
         #construct the full capture commands
         cmd0 = base_cmd[:] #copy list
@@ -96,11 +102,21 @@ class Application:
     def capture_sequence(self,
                          num,
                          delay,
+                         beep_time = 0,
                          **kwargs
                         ):
         i = 0  
         try:                                          
             while True:
+                if beep_time > 0:
+                    if self.verbose:
+                        print "The capture will begin in %d seconds!" % beep_time
+                    beep()
+                    time.sleep(beep_time)
+                    beep()
+                    beep()
+                    beep()
+                    
                 if num > 0 and i >= num:  #negative num will never return
                     if self.verbose:
                         print "finished capture...goodbye"
@@ -113,7 +129,7 @@ class Application:
                              **kwargs
                             )
                 if not (i == num-1):
-                    time.sleep(delay)
+                    time.sleep(delay - beep_time)
                 i += 1
         except KeyboardInterrupt:
             if self.verbose:
@@ -135,6 +151,12 @@ if __name__ == "__main__":
                         help = "post capture delay for sequence",
                         type = int,
                         default = DEFAULT_DELAY,
+                       )
+    parser.add_argument("-b", "--beep-time",
+                        dest = "beep_time",
+                        help = "time to warn before capture",
+                        type = int,
+                        default = DEFAULT_BEEP_TIME,
                        )
     parser.add_argument("-a", "--async",
                         help = "run both captures in parallel processes",
@@ -181,9 +203,10 @@ if __name__ == "__main__":
                       verbose = args.verbose,
                      )
     #run the capture_sequence
-    app.capture_sequence(num   = args.num, 
-                         delay = args.delay,
-                         async = args.async,
+    app.capture_sequence(num       = args.num, 
+                         delay     = args.delay,
+                         beep_time = args.beep_time,
+                         async     = args.async,
                          )
     
     
